@@ -1,0 +1,14 @@
+**/saved_models/*
+*.pt
+*.pth
+*.tar
+*.txt
+datasets/*
+__pycache__/*
+*.jpg
+*.yaml
+*.png
+*.bak
+*.onnx
+*.gz
+test.py
