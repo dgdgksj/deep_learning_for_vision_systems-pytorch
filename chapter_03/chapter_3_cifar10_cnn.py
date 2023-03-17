@@ -172,9 +172,9 @@ def train(opt,model):
 	start_iter = 0
 	iteration = start_iter
 	start_time = time.time()
+	best_accuracy = -1
 	while(True):
 		model.train()
-		cnt = 0
 		for inputs, labels in trainloader:
 			optimizer.zero_grad()
 			# imshow(torchvision.utils.make_grid(inputs))
@@ -186,62 +186,51 @@ def train(opt,model):
 			loss.backward()
 			optimizer.step()
 			loss_avg.add(loss)
-		# break
-		elapsed_time = time.time() - start_time
-		loss_log = f'[{iteration + 1}/{opt.num_iter}] Train loss: {loss_avg.val():0.5f},Elapsed_time: {elapsed_time:0.5f}'
-		loss_avg.reset()
-		print(loss_log)
-		# if (iteration + 1) % opt.valInterval == 0 or iteration == 0:
-		# 	model.eval()
+		if (iteration + 1) % opt.valInterval == 0 or iteration == 0:  # To see training progress, we also conduct validation when 'iteration == 0'
+			correct = 0
+			total = 0
+
+			model.eval()
+			train_loss = loss_avg.val()
+			loss_avg.reset()
+			with torch.no_grad():
+				for inputs, labels  in validloader:
+					inputs = inputs.to(device)
+					labels = labels.to(device)
+
+					# 신경망에 이미지를 통과시켜 출력을 계산합니다
+					outputs = model(inputs)
+					loss = criterion(outputs, labels)
+					loss_avg.add(loss)
+					# 가장 높은 값(energy)를 갖는 분류(class)를 정답으로 선택하겠습니다
+					_, predicted = torch.max(outputs.data, 1)
+					total += labels.size(0)
+					correct += (predicted == labels).sum().item()
+			elapsed_time = time.time() - start_time
+			current_accuracy = 100 * correct // total
+			if current_accuracy > best_accuracy:
+				best_accuracy = current_accuracy
+				torch.save(model.state_dict(), os.path.join(os.path.join(opt.model_save_path,opt.exp_name),"best_accuracy_"+str(100 * correct // total)+".pth"))
+			loss_log = f'[{iteration + 1}/{opt.num_iter}] train loss: {train_loss:0.5f}, valid loss: {loss_avg.val():0.5f}, Accuracy: {100 * correct // total}%, Elapsed_time: {elapsed_time:0.5f}'
+			loss_avg.reset()
+			print(loss_log)
+			model.train()
 		iteration += 1
-
-
-	# for epoch in tqdm(range(num_epochs)):
-	# 	for phase in ['train', 'valid']:
-	# 		if phase == 'train':
-	# 			cnn.train()  # Set model to training mode
-	# 		else:
-	# 			cnn.eval()  # Set model to evaluate mode
-	#
-	# 		running_loss, running_corrects, num_cnt = 0.0, 0, 0
-	# pass
 
 if __name__ == '__main__':
 	opt = argparse.Namespace(
 		batch_size=int(32),
+		exp_name = str("cifar10"),
 		workers=int(4),
 		num_iter=int(200),
-		valInterval=int(10),
+		valInterval=int(1),
 		lr=float(0.001),
-		saved_model=str('./saved_model'),
+		model_save_path=str('../saved_model'),
 		class_names=('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 	)
+	if not os.path.exists(os.path.join(opt.model_save_path,opt.exp_name)):
+		os.makedirs(os.path.join(opt.model_save_path,opt.exp_name),exist_ok=True)
 	model = Simple_cnn_v2()
 	model.cuda()
 	summary(model,input_size=(3, 32, 32))
 	train(opt,model)
-
-	# transform = transforms.Compose(
-	# 	[transforms.Resize((32, 32)),
-	# 		transforms.ToTensor(),
-	# 	 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-	# batch_size = 16
-	# num_workers = 2
-	# trainset = torchvision.datasets.CIFAR10(root='./datasets', train=True, download=True,transform=transform)
-	# train_idx, valid_idx = train_test_split(list(range(len(trainset))), test_size=0.2)
-	# trainset, validset = Subset(trainset, train_idx), Subset(trainset, valid_idx)
-	# trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=num_workers)
-	# validloader = torch.utils.data.DataLoader(validset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=num_workers)
-	#
-	# testset = torchvision.datasets.CIFAR10(root='./datasets', train=False, download=True,transform=transform)
-	# testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=2)
-	# classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-	# dataiter = iter(trainloader)
-	# images, labels = next(dataiter)
-	# #
-	# # 이미지 보여주기
-	# imshow(torchvision.utils.make_grid(images))
-	# # 정답(label) 출력
-	# print(' '.join(f'{classes[labels[j]]:5s}' for j in range(batch_size)))
-	# print(len(trainset))
-	# print(len(validset))
